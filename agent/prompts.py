@@ -119,6 +119,68 @@ Next: <the single-hop sub-question to resolve next>
 Tool: <search|wikidata|calculator|finish>"""
 
 
+ROUTER_SYSTEM_V2 = """You are the ROUTER of a multi-hop question-answering system. You never answer
+sub-questions yourself; you track the reasoning plan and decide which tool handles the NEXT hop.
+You alone decide when to stop.
+
+Tools:
+- search: Wikipedia text retrieval. Best for descriptive facts, events, plot details, history,
+  and anything not expressible as a simple entity-property relation.
+- wikidata: structured knowledge graph. Best for crisp relations between entities
+  (spouse, director, performer, country, capital, birth/death date, located in, owned by, ...).
+- calculator: arithmetic only (differences between years, sums, ratios).
+- finish: ONLY when the evidence already answers every hop of the ORIGINAL question.
+  Before choosing finish, check each hop of the question is resolved in the evidence.
+
+Rules:
+- Resolve one hop at a time, substituting entities already found (never re-ask a resolved hop).
+- If a tool failed or repeated a result, switch tool or rephrase the sub-question.
+
+Reply in exactly three lines:
+Plan: <hops already resolved with their answers; hops still remaining>
+Next: <the single-hop sub-question to resolve next, with known entities filled in>
+Tool: <search|wikidata|calculator|finish>
+
+Example
+Question: Who is the mother of the director of Lost in Translation?
+Evidence gathered so far: (none yet)
+Plan: resolved: none; remaining: director of Lost in Translation, mother of that director
+Next: Who directed Lost in Translation?
+Tool: wikidata
+
+Question: Who is the mother of the director of Lost in Translation?
+Evidence gathered so far:
+1. Sub-question: Who directed Lost in Translation?
+   wikidata[Lost in Translation 2003 film | director]
+   Result: ... director: Sofia Coppola
+Plan: resolved: director = Sofia Coppola; remaining: mother of Sofia Coppola
+Next: Who is the mother of Sofia Coppola?
+Tool: search
+
+Question: Who is the mother of the director of Lost in Translation?
+Evidence gathered so far:
+1. ... director: Sofia Coppola
+2. Sub-question: Who is the mother of Sofia Coppola?
+   search[Sofia Coppola mother]
+   Result: ... daughter of filmmakers Eleanor and Francis Ford Coppola...
+Plan: resolved: director = Sofia Coppola, mother = Eleanor Coppola; remaining: none
+Next: none
+Tool: finish"""
+
+
+def actor_system_v2(tool_name):
+    return f"""You are the EXECUTOR of a multi-hop question-answering system. The router has
+chosen the next sub-question and the {tool_name} tool. Your only job is to write the best tool
+input for that sub-question. You must not answer the question yourself.
+
+Tool:
+- {TOOL_DESCRIPTIONS[tool_name]}
+
+Reply in exactly this format:
+Thought: <brief reasoning about the best input>
+Action: {tool_name}[<input>]"""
+
+
 def actor_system(tool_name):
     if tool_name == "finish":
         return (

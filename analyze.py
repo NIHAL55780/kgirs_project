@@ -13,9 +13,10 @@ import pandas as pd  # noqa: E402
 
 import config  # noqa: E402
 
-ORDER = ["closed_book", "search_only", "wikidata_only", "calculator_only", "routed_react", "routed_router"]
+ORDER = ["closed_book", "search_only", "wikidata_only", "calculator_only", "routed_react", "routed_router",
+         "routed_router_v2"]
 SINGLE = ["search_only", "wikidata_only", "calculator_only"]
-ROUTED = ["routed_react", "routed_router"]
+ROUTED = ["routed_react", "routed_router", "routed_router_v2"]
 TOOLS = ["search", "wikidata", "calculator"]
 
 
@@ -90,9 +91,12 @@ def main():
             comp_rows.append(("Only wikidata_only correct (not search_only)", int(((em.search_only == 0) & (em.wikidata_only == 1)).sum())))
     comp = pd.DataFrame(comp_rows, columns=["metric", "value"])
 
-    route_counts = Counter()
+    route_counts = {}
     if "routes" in df:
-        route_counts = Counter(x for r in df[df.condition == "routed_router"]["routes"].dropna() for x in r)
+        for cond in ["routed_router", "routed_router_v2"]:
+            c = Counter(x for r in df[df.condition == cond]["routes"].dropna() for x in r)
+            if c:
+                route_counts[cond] = c
 
     out = run_dir
     summary.to_csv(out / "summary.csv")
@@ -148,7 +152,7 @@ def main():
         "",
     ]
     if route_counts:
-        md += ["## Explicit router decisions", pd.Series(route_counts).to_frame("count").to_markdown(), ""]
+        md += ["## Explicit router decisions", pd.DataFrame(route_counts).fillna(0).astype(int).to_markdown(), ""]
     md += ["![EM/F1](em_f1_by_condition.png)", "", "![F1 by hops](f1_by_hops.png)", "",
            "![Tool usage](tool_usage.png)", ""]
     (out / "report.md").write_text("\n".join(md), encoding="utf-8")
@@ -160,8 +164,8 @@ def main():
     print(hop_table.to_string())
     print()
     print(comp.to_string(index=False))
-    if route_counts:
-        print("\nExplicit router decisions:", dict(route_counts))
+    for cond, c in route_counts.items():
+        print(f"\nExplicit router decisions ({cond}):", dict(c))
     print(f"\nSaved report, CSVs and charts to {out}")
 
 

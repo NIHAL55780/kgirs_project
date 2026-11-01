@@ -53,6 +53,13 @@ def main():
     r = RouterAgent(llm, "paragraphs").run(q)
     assert r["prediction"] == "1235" and r["routes"] == ["search", "finish"], r
 
+    llm = ScriptedLLM([
+        "Plan: none\nNext: who hosted?\nTool: search", "Thought: I know it\nAction: finish[wrong]",
+        "Plan: done\nNext: none\nTool: finish", "Thought: t\nAction: finish[1235]",
+    ])
+    r = RouterAgent(llm, "paragraphs", version=2).run(q)
+    assert r["prediction"] == "1235" and r["tool_calls"] == {"search": 1} and r["invalid_actions"] == 1, r
+
     print("All pipeline checks passed.")
 
 

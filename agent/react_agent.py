@@ -153,12 +153,22 @@ class ReActAgent:
 
 
 class RouterAgent:
+    """version=1: original router; the executor may also finish, router sees 800-char observations.
+    version=2: only the router can finish, it keeps a running plan, has a worked example, and sees
+    observations of the same length as the ReAct agent."""
+
     TOOLS = ["search", "wikidata", "calculator"]
 
-    def __init__(self, llm: LLM, search_backend=None, max_steps=None):
+    def __init__(self, llm: LLM, search_backend=None, max_steps=None, version=1):
         self.llm = llm
         self.search_backend = search_backend or config.SEARCH_BACKEND
         self.max_steps = max_steps or config.MAX_STEPS
+        self.version = version
+        self.router_system = prompts.ROUTER_SYSTEM_V2 if version == 2 else prompts.ROUTER_SYSTEM
+        self.history_obs_limit = _OBS_LIMIT if version == 2 else 800
+
+    def _actor_system(self, tool):
+        return prompts.actor_system_v2(tool) if self.version == 2 else prompts.actor_system(tool)
 
     @staticmethod
     def _render(question, history):
@@ -187,7 +197,7 @@ class RouterAgent:
         for step in range(1, self.max_steps + 1):
             context = self._render(question, history)
             r = self.llm.chat([
-                {"role": "system", "content": prompts.ROUTER_SYSTEM},
+                {"role": "system", "content": self.router_system},
                 {"role": "user", "content": context},
             ])
             t.add_llm(r)
@@ -206,19 +216,19 @@ class RouterAgent:
                 return t.result(answer, finished=True, steps=step, routes=routes)
 
             a = self.llm.chat([
-                {"role": "system", "content": prompts.actor_system(route)},
+                {"role": "system", "content": self._actor_system(route)},
                 {"role": "user", "content": f"{context}\n\nNext sub-question: {subq}"},
             ], stop=["Observation:"])
             t.add_llm(a)
             tool, arg = parse_action(a.text)
-            if tool == "finish":
+            if tool == "finish" and self.version == 1:
                 t.trajectory.append({"step": step, "router": r.text, "llm": a.text, "action": "finish", "input": arg})
                 return t.result(arg, finished=True, steps=step, routes=routes)
             if tool != route:
                 t.invalid_actions += 1
-                tool, arg = route, arg or subq
+                tool, arg = route, (arg if tool != "finish" and arg else subq)
             obs = run_tool(tools, tool, arg, t)
-            history.append({"subq": subq, "tool": tool, "input": arg, "observation": obs[:800]})
+            history.append({"subq": subq, "tool": tool, "input": arg, "observation": obs[: self.history_obs_limit]})
             t.trajectory.append({"step": step, "router": r.text, "llm": a.text, "action": tool,
                                  "input": arg, "observation": obs})
 

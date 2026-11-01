@@ -29,6 +29,7 @@ CONDITIONS = {
     "routed_react": "All tools, the ReAct agent routes implicitly at every step",
     "routed_router": "All tools, an explicit router LLM picks the tool per sub-question",
     "calculator_only": "Single tool: calculator",
+    "routed_router_v2": "All tools, explicit router v2 (only the router may finish, keeps a plan, full observations)",
 }
 
 
@@ -41,6 +42,8 @@ def make_runner(condition, llm, search_backend):
         return ReActAgent(llm, ALL_TOOLS, search_backend).run
     if condition == "routed_router":
         return RouterAgent(llm, search_backend).run
+    if condition == "routed_router_v2":
+        return RouterAgent(llm, search_backend, version=2).run
     raise ValueError(condition)
 
 
